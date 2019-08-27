@@ -6,4 +6,4 @@ go get github.com/sjwhitworth/golearn/knn
 go get github.com/sjwhitworth/golearn/base
 go get github.com/sjwhitworth/golearn/evaluation
 
-jupyter notebook 
+sudo apt install libzmq3-dev
