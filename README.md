@@ -13,5 +13,5 @@ To run this repo you will need to have the following installed and running in yo
 To run first the imports need to be changed to import my fork of golearn (https://github.com/Soypete/golearn)
 Then run the following in your bash script
 ```bash
-bin/bash run.sh
+setup/bash setup.sh
 ```
