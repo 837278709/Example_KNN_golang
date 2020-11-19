@@ -4,21 +4,41 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/csv"
-	"fmt"
+	"io"
+	"log"
+	"os"
+	"strconv"
+
 	"github.com/kniren/gota/dataframe"
+	"github.com/sjwhitworth/golearn/base"
+	"github.com/sjwhitworth/golearn/evaluation"
+	"github.com/sjwhitworth/golearn/knn"
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
-	"os"
-	"strconv"
 )
-import "github.com/sjwhitworth/golearn/knn"
-import "github.com/sjwhitworth/golearn/base"
-import "github.com/sjwhitworth/golearn/evaluation"
 
 const (
 	datafile = "data/magictelescope_csv.csv"
 )
+
+var (
+	WarningLogger *log.Logger
+	InfoLogger    *log.Logger
+	ErrorLogger   *log.Logger
+)
+
+func init() {
+	file, err := os.OpenFile("log.txt", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Fatalln("Failed to open log file", err)
+	}
+
+	InfoLogger = log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime|log.Lshortfile)
+	multi := io.MultiWriter(file, os.Stdout)
+	WarningLogger = log.New(multi, "WARNING: ", log.Ldate|log.Ltime|log.Lshortfile)
+	ErrorLogger = log.New(multi, "ERROR: ", log.Ldate|log.Ltime|log.Lshortfile)
+}
 
 type GammaImage struct {
 	ID       int
@@ -38,27 +58,24 @@ type GammaImage struct {
 func main() {
 	f, err := os.Open(datafile)
 	if err != nil {
-		fmt.Println(err)
+		ErrorLogger.Fatalln("Failed to open data file")
 	}
 	r := bufio.NewReader(f)
 	// parse data into the data frame type.
 	df := dataframe.ReadCSV(r)
-	fmt.Println(df)
-	fmt.Println(df.Describe())
+	InfoLogger.Println(df)
+	InfoLogger.Println(df.Describe())
 
-	fmt.Println(df.Select([]string{"ID", "fWidth:", "fSize:", "class:"}))
+	InfoLogger.Println(df.Select([]string{"ID", "fWidth:", "fSize:", "class:"}))
 
-	if err != nil {
-		fmt.Println("os.Open: ", err)
-	}
 	// read in file as csv
 	reader := csv.NewReader(f)
 	records, err := reader.ReadAll()
 	if err != nil {
-		fmt.Println("ReadAll: ", err)
+		ErrorLogger.Println("ReadAll: ", err)
 	}
 	size := len(records)
-	fmt.Println("size: ", size)
+	InfoLogger.Println("size: ", size)
 	images := make([]GammaImage, size)
 	//store data for making plot
 	for idx, img := range records {
@@ -102,12 +119,12 @@ func main() {
 	// make new scatter plot
 	scatter, err := plotter.NewScatter(pts)
 	if err != nil {
-		fmt.Println(err)
+		WarningLogger.Println("NewScatter: ", err)
 	}
 	// make plot formatter
 	p, err := plot.New()
 	if err != nil {
-		fmt.Println(err)
+		WarningLogger.Println(err)
 	}
 	// label plot
 	p.Title.Text = "Width vs Size"
@@ -116,9 +133,9 @@ func main() {
 	p.Add(scatter)
 	w, err := p.WriterTo(8*vg.Inch, 8*vg.Inch, "png")
 	if err != nil {
-		panic(err)
+		ErrorLogger.Fatalln(err)
 	}
-	// display inside notebook
+
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)
 	w.WriteTo(writer)
@@ -128,7 +145,7 @@ func main() {
 func build_cnn() {
 	dataCSV, err := base.ParseCSVToInstances(datafile, true)
 	if err != nil {
-		fmt.Println(err)
+		WarningLogger.Println(err)
 	}
 
 	k := knn.NewKnnClassifier("euclidean", "kdtree", 3)
@@ -137,21 +154,21 @@ func build_cnn() {
 	trainData, testData := base.InstancesTrainTestSplit(dataCSV, 0.3)
 	x, y := trainData.Size()
 	w, z := testData.Size()
-	fmt.Println(x, y, w, z)
+	InfoLogger.Println(x, y, w, z)
 	k.Fit(trainData)
 	// Calculates the Euclidean distance and returns the most popular label
 	predictions, err := k.Predict(testData)
 	if err != nil {
-		fmt.Println(err)
+		WarningLogger.Println(err)
 	}
-	fmt.Println(predictions)
+	InfoLogger.Println("Predictions: ", predictions)
 
 	// Prints precision/recall metrics
 	confusionMat, err := evaluation.GetConfusionMatrix(testData, predictions)
 	if err != nil {
-		fmt.Println("Unable to get confusion matrix: %s", err.Error())
+		WarningLogger.Printf("Unable to get confusion matrix: %s", err.Error())
 	}
-	fmt.Println(confusionMat)
+	InfoLogger.Println(confusionMat)
 	accu := evaluation.GetAccuracy(confusionMat)
-	fmt.Println(accu)
+	InfoLogger.Println(accu)
 }
